@@ -1,0 +1,10 @@
+message Example {
+  message Nested {
+    optional string value = 1;
+  }
+
+  required string key = 1;
+  optional Nested nested = 2;
+  repeated string values = 3;
+  repeated Nested nested_values = 4;
+}
