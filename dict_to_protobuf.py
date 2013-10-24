@@ -3,7 +3,15 @@ from fp.collections import lookup
 from fp import p, pp, c
 
 
-def dict_to_protobuf(mod, pb, data):
+class MissingKeyError(Exception):
+    def __init__(self, key, pb):
+        msg = "{key} not described in the {pb!r} msg".format(**locals())
+        Exception.__init__(self, msg)
+        self.key = key
+        self.pb = pb
+
+
+def dict_to_protobuf(mod, pb, data, strict=False, state=None):
     """
     Converts a dict to a protobuf message
 
@@ -29,15 +37,25 @@ def dict_to_protobuf(mod, pb, data):
     >>> ex.nested_values[1].value
     '2'
     """
+    if state is None:
+        state={'strict': strict}
+
     for key, value in data.iteritems():
+        enforce_strictness(strict, pb, key)
+
         if field_exists(pb, key):
             if is_message(pb, key, value):
-                update_message(mod, pb, key, value)
+                update_message(mod, pb, key, value, state)
             elif is_repeated(pb, key, value):
-                update_repeated(mod, pb, key, value)
+                update_repeated(mod, pb, key, value, state)
             elif is_value(pb, key, value):
-                update_value(mod, pb, key, value)
+                update_value(mod, pb, key, value, state)
     return pb
+
+
+def enforce_strictness(strict, pb, key):
+    if strict and not field_exists(pb, key):
+        raise MissingKeyError(key, pb)
 
 
 def is_message(pb, key, value):
@@ -52,24 +70,24 @@ def is_value(pb, key, value):
     return not is_message(pb, key, value) and not is_repeated(pb, key, value)
 
 
-def update_message(mod, pb, key, value):
-    dict_to_protobuf(mod, getattr(pb, key), value)
+def update_message(mod, pb, key, value, state):
+    dict_to_protobuf(mod, getattr(pb, key), value, state=state)
 
 
-def update_repeated(mod, pb, key, values):
+def update_repeated(mod, pb, key, values, state):
     clsM = load_pb_class(mod, pb, key)
 
     if clsM.is_just:
         cls = clsM.from_just
         for value in values:
             obj = getattr(pb, key).add()
-            dict_to_protobuf(mod, obj, value)
+            dict_to_protobuf(mod, obj, value, state=state)
     else:
         for value in values:
             getattr(pb, key).append(value)
 
 
-def update_value(mod, pb, key, value):
+def update_value(mod, pb, key, value, state):
     setattr(pb, key, value)
 
 
