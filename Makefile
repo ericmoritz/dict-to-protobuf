@@ -1,6 +1,6 @@
 test: example_pb2.py
 	pip install pytest 
-	py.test --doctest-modules
+	py.test --doctest-modules dict_to_protobuf.py
 
 build: example_pb2.py
 clean:
