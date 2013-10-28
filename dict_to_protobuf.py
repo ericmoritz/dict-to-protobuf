@@ -5,7 +5,8 @@ from fp import p, pp, c
 
 class MissingKeyError(Exception):
     def __init__(self, key, pb):
-        msg = "{key} not described in the {pb!r} msg".format(**locals())
+        pb_name = _pb_name(pb)
+        msg = "{key!r} not described in the {pb_name!r} message".format(**locals())
         Exception.__init__(self, msg)
         self.key = key
         self.pb = pb
@@ -36,9 +37,48 @@ def dict_to_protobuf(mod, pb, data, strict=False, state=None):
 
     >>> ex.nested_values[1].value
     '2'
+
+    Test the different ways that strict=True will
+    throw an error
+
+    At the root:
+
+    >>> ex = dict_to_protobuf(
+    ...     example_pb2,
+    ...     example_pb2.Example(),
+    ...     {'unknown-key': 1},
+    ...     strict=True)
+    Traceback (most recent call last):
+        ...
+    MissingKeyError: 'unknown-key' not described in the 'example_pb2.Example' message
+
+    In a nested message:
+
+    >>> ex = dict_to_protobuf(
+    ...     example_pb2,
+    ...     example_pb2.Example(),
+    ...     {'nested': {'unknown-key': 1}},
+    ...     strict=True)
+    Traceback (most recent call last):
+        ...
+    MissingKeyError: 'unknown-key' not described in the 'example_pb2.Example.Nested' message
+
+    In a repeated nested message:
+
+    >>> ex = dict_to_protobuf(
+    ...     example_pb2,
+    ...     example_pb2.Example(),
+    ...     {'nested_values': [{'unknown-key': 1}]},
+    ...     strict=True)
+    Traceback (most recent call last):
+        ...
+    MissingKeyError: 'unknown-key' not described in the 'example_pb2.Example.Nested' message
+
     """
     if state is None:
         state={'strict': strict}
+    else:
+        strict = state.get('strict', False)
 
     for key, value in data.iteritems():
         enforce_strictness(strict, pb, key)
@@ -123,5 +163,20 @@ def load_pb_class(mod, pb, key):
 def field_exists(pb, key):
     return key in _fields_by_name(pb)
 
+
 def _fields_by_name(pb):
     return pb.DESCRIPTOR.fields_by_name
+
+
+def _pb_name(pb):
+    """
+    >>> import example_pb2
+    >>> _pb_name(example_pb2.Example)
+    'example_pb2.Example'
+
+    >>> _pb_name(example_pb2.Example.Nested)
+    'example_pb2.Example.Nested'
+    """
+    mod = pb.__module__
+    full_name = pb.DESCRIPTOR.full_name
+    return '{mod}.{full_name}'.format(mod=mod, full_name=full_name)
