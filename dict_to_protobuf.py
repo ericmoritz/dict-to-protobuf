@@ -128,7 +128,13 @@ def update_repeated(mod, pb, key, values, state):
 
 
 def update_value(mod, pb, key, value, state):
-    setattr(pb, key, value)
+    try:
+        setattr(pb, key, value)
+    except Exception, err:
+        raise Exception("Error setting {key!r} to {value!r}: {err}".format(
+                key=key,
+                value=value,
+                err=err))
 
 
 def maybe_getattr(attr, obj):
