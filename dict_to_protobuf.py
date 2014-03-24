@@ -1,4 +1,5 @@
 from fp.monads.maybe import Maybe, Nothing
+from google.protobuf.message import Message
 from fp.collections import lookup
 from fp import p, pp, c
 
@@ -7,6 +8,17 @@ class MissingKeyError(Exception):
     def __init__(self, key, pb):
         pb_name = _pb_name(pb)
         msg = "{key!r} not described in the {pb_name!r} message".format(**locals())
+        Exception.__init__(self, msg)
+        self.key = key
+        self.pb = pb
+
+class KeyTypeError(Exception):
+    def __init__(self, key, pb, value):
+        msg = "{key!r} is wrong type. Expected type {type!r} but got value: {value!r}".format(
+            key=key, 
+            type=type(pb),
+            value=value
+        )
         Exception.__init__(self, msg)
         self.key = key
         self.pb = pb
@@ -99,7 +111,7 @@ def enforce_strictness(strict, pb, key):
 
 
 def is_message(pb, key, value):
-    return type(value) is dict
+    return type(value) is dict 
 
 
 def is_repeated(pb, key, value):
@@ -111,6 +123,12 @@ def is_value(pb, key, value):
 
 
 def update_message(mod, pb, key, value, state):
+    pb_field = field(pb, key)
+    if pb_field.is_nothing:
+        raise MissingKeyError(key, pb)
+    elif not isinstance(pb_field.from_just, Message):
+        raise KeyTypeError(key, pb_field.from_just, value)
+
     dict_to_protobuf(mod, getattr(pb, key), value, state=state)
 
 
@@ -167,7 +185,14 @@ def load_pb_class(mod, pb, key):
 
 
 def field_exists(pb, key):
-    return key in _fields_by_name(pb)
+    return field(pb, key).is_just
+
+def field(pb, key):
+    assert isinstance(pb, Message), "{key!r} is expected to be an object but got type {type!r}".format(
+        key=key,
+        type=type(pb)
+    )
+    return Maybe.catch(lambda: getattr(pb, key))
 
 
 def _fields_by_name(pb):
